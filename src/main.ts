@@ -18,6 +18,7 @@ async function run() {
   try {
     const buildScript = core.getInput('build-script');
     const configFile = core.getInput('bundlewatch-config');
+    const workingDirectory = core.getInput('working-directory') || './';
 
     const githubPayload = github.context.payload;
 
@@ -37,7 +38,7 @@ async function run() {
     if (configFile) {
       try {
         const projectBundlewatchConfig = require(path.resolve(
-          './',
+          workingDirectory,
           configFile
         ));
 
@@ -53,10 +54,12 @@ async function run() {
         return 1;
       }
     } else {
+      const packageJsonLocation = path.join(workingDirectory, 'package.json');
+
       // Try getting the configuration from package.json
       try {
         const projectBundlewatchConfig = JSON.parse(
-          fs.readFileSync('package.json', 'utf-8')
+          fs.readFileSync(packageJsonLocation, 'utf-8')
         ).bundlewatch;
 
         config = {
@@ -65,10 +68,8 @@ async function run() {
         };
       } catch {
         core.setFailed(
-          `Failed while reading the configuration from package.json`
+          `Failed while reading the configuration from ${packageJsonLocation}`
         );
-
-        return 1;
       }
     }
 
@@ -94,6 +95,12 @@ async function run() {
           : githubPayload.after
       }
     };
+
+    if (config.files && workingDirectory !== './') {
+      config.files.forEach((file) => {
+        file.path = path.join(workingDirectory, file.path);
+      });
+    }
 
     // Taken and modified from the official binary:
     // https://github.com/bundlewatch/bundlewatch/blob/7ad173476dcd2910429600af364f3118889be8c8/src/bin/index.js#L42
